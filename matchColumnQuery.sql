@@ -1,19 +1,25 @@
 WITH ats AS (
-    SELECT 
-        MODULE_NM,
-        ATTRIBUTE_STORE_NM,
-        UPPER(TRIM(ATTRIBUTE_STORE_NM)) AS attr_nm_clean
-    FROM IDP.MAIN.ATTRIBUTE_STORE_MODULES
-    WHERE attr_sql_action_freq NOT IN ('RETIRED', 'ONETIME')
+    SELECT
+        TABLE_NAME AS ats_table_name,
+        COLUMN_NAME AS ats_column_name,
+        DATA_TYPE AS ats_data_type,
+        ORDINAL_POSITION AS ats_ordinal_position,
+        UPPER(TRIM(COLUMN_NAME)) AS ats_col_clean
+    FROM IDP.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'MAIN'
+      AND TABLE_NAME IN (
+          SELECT ATTRIBUTE_STORE_NM
+          FROM IDP.MAIN.ATTRIBUTE_STORE_MODULES
+          WHERE attr_sql_action_freq NOT IN ('RETIRED', 'ONETIME')
+      )
+      AND UPPER(TRIM(COLUMN_NAME)) NOT IN ('UPDATE_TS', 'CREATE_TS', 'CUST_ALT_ID')
 ),
 c360 AS (
     SELECT DISTINCT
-        TABLE_SCHEMA,
-        TABLE_NAME,
-        COLUMN_NAME,
-        UPPER(TRIM(COLUMN_NAME)) AS col_nm_clean,
-        -- strip common prefix to help matching, adjust as needed
-        REPLACE(UPPER(TRIM(COLUMN_NAME)), 'C360_', '') AS col_nm_stripped
+        TABLE_SCHEMA AS c360_table_schema,
+        TABLE_NAME AS c360_table_name,
+        COLUMN_NAME AS c360_column_name,
+        UPPER(TRIM(COLUMN_NAME)) AS c360_col_clean
     FROM COMMUNITY.INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_SCHEMA = 'IDP'
       AND TABLE_NAME IN (
@@ -28,30 +34,23 @@ c360 AS (
 ),
 matched AS (
     SELECT
-        c360.TABLE_SCHEMA,
-        c360.TABLE_NAME,
-        c360.COLUMN_NAME,
-        ats.MODULE_NM,
-        ats.ATTRIBUTE_STORE_NM,
+        ats.ats_table_name,
+        ats.ats_column_name,
+        c360.c360_table_name,
+        c360.c360_column_name,
         CASE
-            WHEN c360.col_nm_clean = ats.attr_nm_clean THEN 'EXACT'
-            WHEN c360.col_nm_stripped = ats.attr_nm_clean THEN 'EXACT_AFTER_PREFIX_STRIP'
-            WHEN CONTAINS(c360.col_nm_clean, ats.attr_nm_clean)
-                 OR CONTAINS(ats.attr_nm_clean, c360.col_nm_clean) THEN 'PARTIAL_CONTAINS'
-            WHEN CONTAINS(c360.col_nm_stripped, ats.attr_nm_clean)
-                 OR CONTAINS(ats.attr_nm_clean, c360.col_nm_stripped) THEN 'PARTIAL_CONTAINS_STRIPPED'
+            WHEN ats.ats_col_clean = c360.c360_col_clean THEN 'EXACT'
+            WHEN CONTAINS(c360.c360_col_clean, ats.ats_col_clean) THEN 'C360_CONTAINS_ATS'
+            WHEN CONTAINS(ats.ats_col_clean, c360.c360_col_clean) THEN 'ATS_CONTAINS_C360'
             ELSE NULL
         END AS match_type
-    FROM c360
-    LEFT JOIN ats
-        ON c360.col_nm_clean = ats.attr_nm_clean
-        OR c360.col_nm_stripped = ats.attr_nm_clean
-        OR CONTAINS(c360.col_nm_clean, ats.attr_nm_clean)
-        OR CONTAINS(ats.attr_nm_clean, c360.col_nm_clean)
-        OR CONTAINS(c360.col_nm_stripped, ats.attr_nm_clean)
-        OR CONTAINS(ats.attr_nm_clean, c360.col_nm_stripped)
+    FROM ats
+    LEFT JOIN c360
+        ON ats.ats_col_clean = c360.c360_col_clean
+        OR CONTAINS(c360.c360_col_clean, ats.ats_col_clean)
+        OR CONTAINS(ats.ats_col_clean, c360.c360_col_clean)
 )
 SELECT *
 FROM matched
 WHERE match_type IS NOT NULL
-ORDER BY TABLE_NAME, COLUMN_NAME;
+ORDER BY ats_table_name, ats_column_name;
