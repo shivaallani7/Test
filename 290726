@@ -1,0 +1,24 @@
+You are analyzing a SQL file containing one or more stored procedures. 
+Your task is to extract every table name along with the column/attribute 
+names referenced against it (in SELECT, INSERT, UPDATE, WHERE, JOIN, 
+GROUP BY, ORDER BY clauses, etc.).
+
+Instructions:
+1. Go through the SQL file procedure by procedure.
+2. For each stored procedure, identify every table referenced (including 
+   temp tables, CTEs, and views if present).
+3. For each table, list all column/attribute names that are used in 
+   relation to it (selected, filtered, joined on, inserted, or updated).
+4. If a column's source table is ambiguous (e.g., no alias or schema 
+   prefix), infer it from context; if it cannot be determined, mark it 
+   as "Unknown".
+5. Ignore SQL keywords, functions, and literals — only extract actual 
+   column and table identifiers.
+6. Output the result as a table with these columns:
+   | Stored Procedure Name | Table Name | Column/Attribute Name |
+7. If a table is used but no specific columns are referenced (e.g., 
+   SELECT *), note it as "ALL COLUMNS".
+8. Do not summarize or omit any procedure — process the entire file 
+   completely, even if it is long.
+
+Return only the structured table as output, no extra commentary.
