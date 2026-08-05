@@ -1,9 +1,3 @@
--- Replace with your list of tables (fully qualified: DB.SCHEMA.TABLE)
-SET table_list = ARRAY_CONSTRUCT(
-    'MY_DB.MY_SCHEMA.TABLE_A',
-    'MY_DB.MY_SCHEMA.TABLE_B'
-);
-
 SELECT
     ah.query_id,
     qh.query_text,
@@ -19,6 +13,9 @@ FROM util.it.access_history ah
 JOIN util.it.query_history qh
     ON ah.query_id = qh.query_id
 , LATERAL FLATTEN(input => ah.base_objects_accessed) obj
-WHERE obj.value:"objectName"::STRING IN (SELECT VALUE::STRING FROM TABLE(FLATTEN(INPUT => $table_list)))
+WHERE obj.value:"objectName"::STRING IN (
+    'MY_DB.MY_SCHEMA.TABLE_A',
+    'MY_DB.MY_SCHEMA.TABLE_B'
+)
   AND qh.start_time >= DATEADD(month, -3, CURRENT_TIMESTAMP())
 ORDER BY qh.start_time DESC;
