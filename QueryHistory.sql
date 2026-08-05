@@ -8,6 +8,7 @@ reads AS (
         obj.value:"objectName"::STRING AS table_name,
         qh.query_id,
         qh.query_type,
+        qh.user_name,
         qh.start_time,
         ah.root_query_id
     FROM util.it.access_history ah
@@ -21,6 +22,7 @@ writes AS (
         obj.value:"objectName"::STRING AS table_name,
         qh.query_id,
         qh.query_type,
+        qh.user_name,
         qh.start_time,
         ah.root_query_id
     FROM util.it.access_history ah
@@ -30,14 +32,15 @@ writes AS (
     WHERE qh.start_time >= DATEADD(month, -3, CURRENT_TIMESTAMP())
 ),
 combined AS (
-    SELECT table_name, query_id, query_type, start_time, root_query_id, 'READ' AS access_type FROM reads
+    SELECT table_name, query_id, query_type, user_name, start_time, root_query_id, 'READ' AS access_type FROM reads
     UNION ALL
-    SELECT table_name, query_id, query_type, start_time, root_query_id, 'WRITE' AS access_type FROM writes
+    SELECT table_name, query_id, query_type, user_name, start_time, root_query_id, 'WRITE' AS access_type FROM writes
 ),
 normalized AS (
     SELECT
         table_name,
         query_id,
+        user_name,
         start_time,
         CASE
             WHEN root_query_id IS NOT NULL THEN 'STORED_PROC_CALL'
@@ -45,7 +48,7 @@ normalized AS (
         END AS op_type
     FROM combined
 ),
--- summary stats per table (no op_type breakdown here)
+-- overall summary stats per table
 summary AS (
     SELECT
         table_name,
@@ -66,18 +69,30 @@ summary AS (
     FROM normalized
     GROUP BY table_name
 ),
--- op_type breakdown per table, aggregated ONCE per (table_name, op_type)
+-- operation type breakdown per table
 op_counts AS (
     SELECT table_name, op_type, COUNT(*) AS op_count
     FROM normalized
     GROUP BY table_name, op_type
 ),
--- collapse op_counts into one JSON object per table
 op_breakdown AS (
     SELECT
         table_name,
         OBJECT_AGG(op_type, op_count) AS full_operation_breakdown
     FROM op_counts
+    GROUP BY table_name
+),
+-- user breakdown per table: total accesses by each user
+user_counts AS (
+    SELECT table_name, user_name, COUNT(*) AS user_access_count
+    FROM normalized
+    GROUP BY table_name, user_name
+),
+user_breakdown AS (
+    SELECT
+        table_name,
+        OBJECT_AGG(user_name, user_access_count) AS access_count_by_user
+    FROM user_counts
     GROUP BY table_name
 )
 SELECT
@@ -93,8 +108,9 @@ SELECT
     s.ctas_count,
     s.stored_proc_call_count,
     s.other_count,
-    ob.full_operation_breakdown
+    ob.full_operation_breakdown,
+    ub.access_count_by_user
 FROM summary s
-JOIN op_breakdown ob
-    USING (table_name)
+JOIN op_breakdown ob USING (table_name)
+JOIN user_breakdown ub USING (table_name)
 ORDER BY s.total_access_count DESC;
