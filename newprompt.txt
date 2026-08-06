@@ -1,0 +1,7 @@
+atteched is the list of tasks with storec_procedures.
+
+Critically analyze the stored_procs and check the output before sending it. provide the output as below.
+
+Task Name, Stored_proc name, list of Source tables used in this stored proc, list of temporary   tables used in this stored_proc and targe tables in this stored proc
+
+provide it in a table format.
