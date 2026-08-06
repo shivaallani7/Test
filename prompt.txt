@@ -1,0 +1,6 @@
+atteched is the list of stored procedure. I want to know for each stored_procedure which of the the below table are being used as either as  souce table or a target table.
+<list of tables>
+provide 2 outputs in the below format.
+
+Stored_procedure_name, list of source table from the list above, list of target tables from the list above.
+Stored_procedure_name, list of all source tables, list of  all target tables .
